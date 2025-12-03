@@ -135,6 +135,19 @@ railway connect postgres
 
 ## Troubleshooting
 
+### Error: pnpm-lock.yaml desactualizado
+
+Si obtienes un error `ERR_PNPM_OUTDATED_LOCKFILE`:
+
+**Solución**: El Dockerfile ya está configurado con `--no-frozen-lockfile` para Railway. Si el error persiste, regenera el lockfile localmente:
+
+\`\`\`bash
+pnpm install
+git add pnpm-lock.yaml
+git commit -m "Update pnpm lockfile"
+git push
+\`\`\`
+
 ### Error de conexión a la base de datos
 
 Verifica que `DATABASE_URL` esté configurado correctamente en Railway.
