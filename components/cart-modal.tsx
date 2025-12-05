@@ -23,46 +23,6 @@ interface UserData {
     uid: string;
 }
 
-// 🛒 PLACEHOLDER para useCart
-// Se asume que este hook provee los datos del carrito desde tu backend.
-const useCart = () => {
-    // Usamos datos de ejemplo solo para que la interfaz se vea con contenido.
-    // Reemplaza esto con tu estado real del carrito.
-    const EXTERNAL_CART_ITEMS: CartItem[] = [
-        { id: 101, name: "Espada de Energía", price: 150.00, quantity: 1, image: "https://placehold.co/80x80/22c55e/FFFFFF?text=E" },
-        { id: 102, name: "Armadura Pesada", price: 299.99, quantity: 2, image: "https://placehold.co/80x80/3b82f6/FFFFFF?text=A" },
-    ];
-    
-    const getTotalPrice = useMemo(() => () => EXTERNAL_CART_ITEMS.reduce((sum, item) => sum + item.price * item.quantity, 0), []);
-
-    return {
-        cart: EXTERNAL_CART_ITEMS, 
-        removeFromCart: (index: number) => console.log(`[PLACEHOLDER] Eliminando ítem ${index}`),
-        increaseQuantity: (index: number) => console.log(`[PLACEHOLDER] Aumentando cantidad ${index}`),
-        decreaseQuantity: (index: number) => console.log(`[PLACEHOLDER] Disminuyendo cantidad ${index}`),
-        clearCart: () => console.log("[PLACEHOLDER] Vaciando carrito"),
-        getTotalPrice,
-    };
-};
-
-// 👤 PLACEHOLDER para useAuth
-// Se asume que este hook provee el estado de autenticación real.
-const useAuth = () => {
-    // Asume un usuario autenticado para la demostración, con datos reales
-    const REAL_USER_DATA: UserData = {
-        displayName: "John Doe (DB Railway)",
-        email: "john.doe@railway.com",
-        uid: "railway-user-123",
-    };
-
-    return {
-        user: REAL_USER_DATA, // Usuario real simulado
-        isAuthenticated: true, // Estado real simulado
-    };
-};
-// =====================================================================
-
-
 interface CartModalProps {
   isOpen: boolean
   onClose: () => void
