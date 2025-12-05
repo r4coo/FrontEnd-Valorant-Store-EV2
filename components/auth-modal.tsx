@@ -8,7 +8,10 @@ interface AuthModalProps {
   onSwitchMode: () => void
 }
 
-export function AuthModal({ isOpen, onClose, mode, onSuccess, onSwitchMode }: AuthModalProps) {
+function AuthModal({ isOpen, onClose, mode, onSuccess, onSwitchMode }: AuthModalProps) {
+  // 💡 Usando el hook real para obtener la función login
+  const { login } = useAuth() 
+
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -16,137 +19,102 @@ export function AuthModal({ isOpen, onClose, mode, onSuccess, onSwitchMode }: Au
     confirmPassword: "",
   })
 
-  // Estados para manejar el loading y el error del API
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
 
-  // Obtén la URL base de la API
-  const API_BASE_URL = process.env.NEXT_PUBLIC_API_BACK
+  // ⚠️ REEMPLAZAR ESTA URL CON TU BACKEND REAL DE SPRING BOOT
+  // const API_BASE_URL = process.env.NEXT_PUBLIC_API_BACK; 
+  const API_BASE_URL = "https://backend-production-566e.up.railway.app"; 
 
   if (!isOpen) return null
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormData({ ...formData, [e.target.id]: e.target.value });
+    setError(null);
+  };
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setError(null)
+    setSuccessMessage(null)
+    setIsLoading(true)
 
-    if (mode === "register") {
-      // 1. VALIDACIONES LOCALES (REGISTRO)
-      if (!formData.name || !formData.email || !formData.password || !formData.confirmPassword) {
-        alert("Por favor, completa todos los campos")
-        return
-      }
-      if (formData.password !== formData.confirmPassword) {
-        alert("Las contraseñas no coinciden")
-        return
-      }
-      if (formData.password.length < 6) {
-        alert("La contraseña debe tener al menos 6 caracteres")
-        return
-      }
+    if (!API_BASE_URL) {
+      setError("Error: La URL del backend no está configurada.")
+      setIsLoading(false);
+      return
+    }
 
-      if (!API_BASE_URL) {
-        setError("Error: La URL del backend no está configurada (NEXT_PUBLIC_API_BACK)")
-        return
-      }
-
-      // 2. PREPARACIÓN DE DATOS PARA EL BACKEND (REGISTRO)
-      const registerData = {
-        nombreUsuario: formData.name,
-        correo: formData.email,
-        password: formData.password,
-      }
-
-      setIsLoading(true)
-
-      // 3. LLAMADA AL BACKEND (REGISTRO)
-      try {
-        const response = await fetch(`${API_BASE_URL}/usuarios`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(registerData),
-        })
-
-        // 4. MANEJO DE RESPUESTA (REGISTRO)
-        if (response.ok) {
-          alert("¡Registro exitoso! Ya puedes iniciar sesión.")
-
-          // ➡️ LÓGICA DEL MODAL REESTABLECIDA Y LIMPIEZA
-          onSuccess()
-          setFormData({ name: "", email: "", password: "", confirmPassword: "" })
-          onSwitchMode()
-        } else {
-          const errorText = await response.text()
-          const errorMessage = `Error ${response.status}: ${errorText || 'Error desconocido'}`
-          setError(errorMessage)
-          alert(`Error al registrar: ${errorMessage}`)
-        }
-      } catch (err) {
-        console.error("Error de red/servidor:", err)
-        setError("No se pudo conectar con el servidor. Verifica la URL y la configuración de CORS.")
-        alert("No se pudo conectar con el servidor. Intenta de nuevo.")
-      } finally {
-        setIsLoading(false)
-      }
-    } else {
-      // =========================================================
-      // 🚀 LÓGICA DE INICIO DE SESIÓN (LOGIN) - IMPLEMENTADA AQUÍ
-      // =========================================================
+    const endpoint = mode === "register" ? "/usuarios" : "/usuarios/login";
+    
+    try {
+      let dataToSend: any;
       
-      // 1. VALIDACIONES LOCALES (LOGIN)
-      if (!formData.email || !formData.password) {
-        alert("Por favor, completa el correo y la contraseña.")
-        return
-      }
-
-      if (!API_BASE_URL) {
-        setError("Error: La URL del backend no está configurada (NEXT_PUBLIC_API_BACK)")
-        return
-      }
-
-      // 2. PREPARACIÓN DE DATOS PARA EL BACKEND (LOGIN)
-      const loginData = {
-        correo: formData.email,
-        password: formData.password,
-      }
-
-      setIsLoading(true)
-
-      // 3. LLAMADA AL BACKEND (LOGIN)
-      try {
-        // ASUMIMOS EL ENDPOINT /usuarios/login para la autenticación
-        const response = await fetch(`${API_BASE_URL}/usuarios/login`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(loginData),
-        })
-
-        // 4. MANEJO DE RESPUESTA (LOGIN)
-        if (response.ok) {
-          // La respuesta puede contener un token JWT o datos del usuario
-          const data = await response.json() 
-          
-          alert("¡Inicio de sesión exitoso!")
-
-          // ➡️ LÓGICA DEL MODAL REESTABLECIDA Y LIMPIEZA
-          onSuccess() // Cierra el modal
-          setFormData({ name: "", email: "", password: "", confirmPassword: "" }) // Limpia el formulario
-        } else {
-          const errorText = await response.text()
-          const errorMessage = `Error ${response.status}: ${errorText || 'Credenciales inválidas o error desconocido'}`
-          setError(errorMessage)
-          alert(`Error al iniciar sesión: ${errorMessage}`)
+      if (mode === "register") {
+        // Validación de Registro
+        if (!formData.name || !formData.email || !formData.password || !formData.confirmPassword) {
+            setError("Por favor, completa todos los campos.")
+            return
         }
-      } catch (err) {
-        console.error("Error de red/servidor:", err)
-        setError("No se pudo conectar con el servidor. Verifica la URL y la configuración de CORS.")
-        alert("No se pudo conectar con el servidor. Intenta de nuevo.")
-      } finally {
-        setIsLoading(false)
+        if (formData.password !== formData.confirmPassword) {
+            setError("Las contraseñas no coinciden.")
+            return
+        }
+        if (formData.password.length < 6) {
+            setError("La contraseña debe tener al menos 6 caracteres.")
+            return
+        }
+        dataToSend = {
+          nombreUsuario: formData.name,
+          correo: formData.email,
+          password: formData.password,
+        };
+      } else {
+        // Validación de Login
+        if (!formData.email || !formData.password) {
+            setError("Por favor, completa el correo y la contraseña.")
+            return
+        }
+        dataToSend = {
+          correo: formData.email,
+          password: formData.password,
+        };
       }
+
+      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(dataToSend),
+      })
+
+      if (response.ok) {
+        const userData: UserData = await response.json();
+
+        if (mode === "login") {
+          // 💡 ESTA ES LA CLAVE: Llamar a login del Contexto con los datos reales
+          login(userData); 
+          setSuccessMessage("¡Inicio de sesión exitoso!");
+          setTimeout(() => onSuccess(), 1000); // Cierra el modal y notifica éxito
+        } else {
+          setSuccessMessage("¡Registro exitoso! Ahora inicia sesión.");
+          // Cambia a modo login después de un registro exitoso
+          setTimeout(() => {
+            setFormData({ name: "", email: userData.correo, password: "", confirmPassword: "" });
+            onSwitchMode();
+          }, 1500);
+        }
+      } else {
+        const errorBody = await response.json().catch(() => ({}));
+        const errorText = errorBody.message || errorBody.error || await response.text();
+        const defaultMsg = mode === "login" ? 'Credenciales inválidas.' : 'Error desconocido al registrar.';
+        setError(`Error ${response.status}: ${errorText || defaultMsg}`)
+      }
+    } catch (err) {
+      console.error("Error de red/servidor:", err)
+      setError("No se pudo conectar con el servidor. Verifica la URL y la configuración.")
+    } finally {
+      setIsLoading(false)
     }
   }
 
@@ -154,136 +122,112 @@ export function AuthModal({ isOpen, onClose, mode, onSuccess, onSwitchMode }: Au
     <div
       className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4"
       onClick={onClose}
-      data-testid={`${mode}-modal`}
     >
       <div
-        className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-lg p-8 max-w-md w-full border-2 border-red-500"
+        className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-lg p-8 max-w-md w-full border-2 border-red-500 shadow-2xl transition-all duration-300"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* 🔹 Título y botón de cierre */}
+        {/* Título y botón de cierre */}
         <div className="flex justify-between items-center mb-6">
-          <h2
-            className="text-2xl font-bold text-white"
-            data-testid={`${mode}-title`}
-          >
+          <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+            <LogIn className="w-6 h-6 text-red-500" />
             {mode === "login" ? "INICIAR SESIÓN" : "REGISTRARSE"}
           </h2>
           <button
             onClick={onClose}
             className="text-white text-2xl hover:text-red-500 transition-colors"
-            data-testid={`${mode}-close`}
           >
             ✕
           </button>
         </div>
 
-        {/* 🔹 Formulario principal */}
-        <form
-          onSubmit={handleSubmit}
-          className="space-y-4"
-          data-testid={`${mode}-form`}
-        >
-          {/* 💡 Muestra el error si existe */}
-          {error && (
-            <p className="text-red-500 text-center font-bold">{error}</p>
-          )}
+        {/* Mensajes de estado */}
+        {error && (
+          <p className="text-red-300 text-center text-sm font-medium mb-4 p-2 bg-red-900/30 rounded-md border border-red-500/50">
+            {error}
+          </p>
+        )}
+        {successMessage && (
+          <p className="text-green-300 text-center text-sm font-medium mb-4 p-2 bg-green-900/30 rounded-md border border-green-500/50">
+            {successMessage}
+          </p>
+        )}
 
+        {/* Formulario principal */}
+        <form onSubmit={handleSubmit} className="space-y-4">
+          
           {mode === "register" && (
             <div>
-              <label
-                className="block text-white text-sm font-bold mb-2"
-                htmlFor="name"
-              >
+              <label className="block text-white text-sm font-bold mb-2" htmlFor="name">
                 NOMBRE:
               </label>
               <input
                 type="text"
                 id="name"
                 value={formData.name}
-                onChange={(e) =>
-                  setFormData({ ...formData, name: e.target.value })
-                }
+                onChange={handleInputChange}
                 className="w-full px-4 py-2 bg-gray-800 text-white border-2 border-gray-700 rounded focus:border-red-500 outline-none"
                 required
-                data-testid="register-name-input"
+                disabled={isLoading}
               />
             </div>
           )}
 
           <div>
-            <label
-              className="block text-white text-sm font-bold mb-2"
-              htmlFor="email"
-            >
+            <label className="block text-white text-sm font-bold mb-2" htmlFor="email">
               EMAIL:
             </label>
             <input
               type="email"
               id="email"
               value={formData.email}
-              onChange={(e) =>
-                setFormData({ ...formData, email: e.target.value })
-              }
+              onChange={handleInputChange}
               className="w-full px-4 py-2 bg-gray-800 text-white border-2 border-gray-700 rounded focus:border-red-500 outline-none"
               required
-              data-testid={`${mode}-email-input`}
+              disabled={isLoading}
             />
           </div>
 
           <div>
-            <label
-              className="block text-white text-sm font-bold mb-2"
-              htmlFor="password"
-            >
+            <label className="block text-white text-sm font-bold mb-2" htmlFor="password">
               CONTRASEÑA:
             </label>
             <input
               type="password"
               id="password"
               value={formData.password}
-              onChange={(e) =>
-                setFormData({ ...formData, password: e.target.value })
-              }
+              onChange={handleInputChange}
               className="w-full px-4 py-2 bg-gray-800 text-white border-2 border-gray-700 rounded focus:border-red-500 outline-none"
               required
-              data-testid={`${mode}-password-input`}
+              disabled={isLoading}
             />
           </div>
 
           {mode === "register" && (
             <div>
-              <label
-                className="block text-white text-sm font-bold mb-2"
-                htmlFor="confirmPassword"
-              >
+              <label className="block text-white text-sm font-bold mb-2" htmlFor="confirmPassword">
                 CONFIRMAR CONTRASEÑA:
               </label>
               <input
                 type="password"
                 id="confirmPassword"
                 value={formData.confirmPassword}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    confirmPassword: e.target.value,
-                  })
-                }
+                onChange={handleInputChange}
                 className="w-full px-4 py-2 bg-gray-800 text-white border-2 border-gray-700 rounded focus:border-red-500 outline-none"
                 required
-                data-testid="register-confirm-password-input"
+                disabled={isLoading}
               />
             </div>
           )}
 
-          {/* 🔹 Botón principal */}
+          {/* Botón principal */}
           <button
             type="submit"
-            className="w-full bg-gradient-to-r from-red-600 to-red-800 hover:from-red-700 hover:to-red-900 text-white py-3 rounded font-bold transition-all disabled:opacity-50"
-            data-testid={`${mode}-submit`}
-            disabled={isLoading} // Deshabilita mientras carga
+            className="w-full bg-gradient-to-r from-red-600 to-red-800 hover:from-red-700 hover:to-red-900 text-white py-3 rounded font-bold transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+            disabled={isLoading || !!successMessage}
           >
             {isLoading
-              ? "Cargando..."
+              ? <><Zap className="w-5 h-5 animate-spin" /> Procesando...</>
               : mode === "login"
               ? "INICIAR SESIÓN"
               : "REGISTRARSE"}
@@ -298,9 +242,7 @@ export function AuthModal({ isOpen, onClose, mode, onSuccess, onSwitchMode }: Au
             <button
               onClick={onSwitchMode}
               className="text-red-500 hover:text-red-400 font-bold"
-              data-testid={`switch-to-${
-                mode === "login" ? "register" : "login"
-              }`}
+              disabled={isLoading || !!successMessage}
             >
               {mode === "login" ? "REGISTRARSE" : "INICIAR SESIÓN"}
             </button>
