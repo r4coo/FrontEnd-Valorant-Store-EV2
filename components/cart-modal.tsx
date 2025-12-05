@@ -3,21 +3,29 @@
 import { useCart } from "@/contexts/cart-context"
 import Image from "next/image"
 import { useState } from "react"
+// 1. 🟢 Importar el hook de autenticación
+import { useAuth } from "@/contexts/auth-context" // Asegúrate de que la ruta sea correcta
 
 interface CartModalProps {
   isOpen: boolean
   onClose: () => void
 }
 
-// ⚠️ IMPORTANTE: Aquí deberías integrar tu hook de autenticación real (ej. useAuth) 
-// para obtener el nombre y correo del usuario autenticado.
-// Usaremos placeholders para simular los datos necesarios para la API.
-const DUMMY_USER_NAME = "Usuario Autenticado" 
-const DUMMY_USER_EMAIL = "usuario.autenticado@ejemplo.com"
+// ⚠️ ELIMINAMOS LAS CONSTANTES DUMMY AQUÍ:
+// const DUMMY_USER_NAME = "Usuario Autenticado" 
+// const DUMMY_USER_EMAIL = "usuario.autenticado@ejemplo.com"
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BACK
 
 export function CartModal({ isOpen, onClose }: CartModalProps) {
   const { cart, removeFromCart, increaseQuantity, decreaseQuantity, clearCart, getTotalPrice } = useCart()
+  // 2. 🟢 Obtener los datos del usuario real usando useAuth
+  const { user, isAuthenticated } = useAuth(); // Usamos el hook
+
+  // 3. 🟢 Definir las variables de usuario usando el contexto
+  const buyerName = user?.name || "Usuario Desconocido"; // Si user es null, usa un valor por defecto
+  const buyerEmail = user?.email || "desconocido@ejemplo.com";
+  // Si NO tienes un contexto de auth real, puedes forzar un placeholder, 
+  // pero el propósito es usar el user REAL.
   
   // Estados para manejar la compra
   const [isLoading, setIsLoading] = useState(false)
@@ -32,6 +40,12 @@ export function CartModal({ isOpen, onClose }: CartModalProps) {
       return
     }
 
+    // 0.5. 🟢 Validar autenticación (opcional, pero recomendado)
+    if (!isAuthenticated || !user) {
+      setCheckoutMessage({ type: 'error', text: "Debes iniciar sesión para completar la compra." });
+      return;
+    }
+
     // 1. Validar el carrito
     if (cart.length === 0) {
       setCheckoutMessage({ type: 'error', text: "Tu carrito está vacío. Agrega productos para comprar." });
@@ -41,16 +55,13 @@ export function CartModal({ isOpen, onClose }: CartModalProps) {
     // 2. Preparar los datos de la orden
     const totalPrice = getTotalPrice()
     
-    // El backend espera un objeto Venta, así que enviamos los datos necesarios.
-    // Asegúrate de que los nombres de los campos (nombreUsuario, correo, total, etc.) 
-    // coincidan con las propiedades de tu entidad Venta en Spring Boot.
+    // 4. 🟢 Usar las variables de usuario reales (buyerName, buyerEmail)
     const orderData = {
-      // Usar datos reales del usuario (reemplazar DUMMY_USER_...)
-      nombreUsuario: DUMMY_USER_NAME,
-      correo: DUMMY_USER_EMAIL,
+      nombreUsuario: buyerName, 
+      correo: buyerEmail,
       total: totalPrice,
       productos: cart.map(item => ({
-        idProducto: item.id, // Asume que cada producto tiene un ID
+        idProducto: item.id, 
         nombre: item.name,
         cantidad: item.quantity,
         precioUnitario: item.price,
@@ -60,9 +71,8 @@ export function CartModal({ isOpen, onClose }: CartModalProps) {
     setIsLoading(true)
     setCheckoutMessage(null)
 
-    // 3. Llamada a la API
+    // 3. Llamada a la API (el resto del código de la llamada es el mismo)
     try {
-      // 🚨 CORRECCIÓN CLAVE: CAMBIAMOS /compras A /ventas para coincidir con el VentaController
       const response = await fetch(`${API_BASE_URL}/ventas`, { 
         method: "POST",
         headers: {
@@ -80,7 +90,6 @@ export function CartModal({ isOpen, onClose }: CartModalProps) {
             text: `¡Compra exitosa! Total pagado: $${totalPrice.toFixed(2)}. ID de venta: ${result.id || 'N/A'}` 
         })
         clearCart()
-        // No cerramos el modal inmediatamente, permitimos al usuario ver el mensaje de éxito
       } else {
         // Error de la API (ej. 400, 500)
         const errorText = await response.text()
@@ -145,14 +154,20 @@ export function CartModal({ isOpen, onClose }: CartModalProps) {
           </div>
         )}
 
-        {/* Información del Usuario (PLACEHOLDER) */}
+        {/* 5. 🟢 Modificar la sección de Información del Usuario */}
         <div className="bg-gray-800 p-4 rounded-lg mb-6 text-sm text-gray-300">
-            <p className="font-semibold text-white mb-2">Detalles del Comprador (Placeholder):</p>
-            <p>Nombre: <span className="text-red-400">{DUMMY_USER_NAME}</span></p>
-            <p>Email: <span className="text-red-400">{DUMMY_USER_EMAIL}</span></p>
-            <p className="text-xs mt-1 italic text-gray-500">
-                ⚠️ Reemplaza estas constantes con los datos de tu Contexto de Autenticación.
+            <p className="font-semibold text-white mb-2">
+              Detalles del Comprador {isAuthenticated ? '' : '(Modo Invitado/Demo)'}:
             </p>
+            {/* 🟢 Usar las variables del contexto (buyerName, buyerEmail) */}
+            <p>Nombre: <span className="text-red-400">{buyerName}</span></p>
+            <p>Email: <span className="text-red-400">{buyerEmail}</span></p>
+            {/* 6. 🟢 Cambiar el mensaje de advertencia si el usuario NO está autenticado */}
+            {!isAuthenticated && (
+              <p className="text-xs mt-1 italic text-yellow-500">
+                ⚠️ **ADVERTENCIA:** No hay sesión activa. Los datos mostrados son de un usuario por defecto.
+              </p>
+            )}
         </div>
 
 
