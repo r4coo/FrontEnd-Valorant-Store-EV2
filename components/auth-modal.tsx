@@ -1,9 +1,14 @@
-import React, { useState, useEffect, FormEvent } from "react";
-// Importaciones de íconos necesarias
-import { ShoppingCart, User, LogOut, UserPlus, LogIn, X, Mail, Lock, AlertTriangle, Zap, Loader2 } from "lucide-react";
-// Supongo que tienes un context de carrito, pero lo dejo como un placeholder para que el código compile
-// import { useCart } from "@/contexts/cart-context"; 
+import React, { useState, useEffect } from "react";
+// Importaciones de React necesarias:
+// Nota: FormEvent no se importa directamente desde 'react', sino que se infiere o se usa el tipo global en JSX
+import { FormEvent } from "react"; 
 
+// Importación COMPLETA de TODOS los íconos de Lucide usados:
+import { 
+  User, LogOut, UserPlus, LogIn, 
+  X, Mail, Lock, AlertTriangle, 
+  Zap, Loader2 
+} from "lucide-react"; 
 
 // ⚠️ Constante de la URL de tu backend
 const API_BASE_URL = "https://backend-production-566e.up.railway.app";
@@ -41,8 +46,6 @@ const fetchWithRetry = async (url, options, retries = 3) => {
 // --- COMPONENTE MODAL DE AUTENTICACIÓN ---
 
 function AuthModal({ isOpen, onClose, mode, onSuccess, onSwitchMode }) {
-  // Los tipos de TypeScript se eliminan para que sea un componente JSX simple, pero se mantiene la estructura
-  // de las propiedades que recibes, asumiendo 'any' para la compatibilidad rápida.
   
   const [formData, setFormData] = useState({
     name: "",
@@ -64,6 +67,7 @@ function AuthModal({ isOpen, onClose, mode, onSuccess, onSwitchMode }) {
     setSuccessMessage(null);
   };
 
+  // El tipo FormEvent se utiliza aquí (implícitamente FormEvent<HTMLFormElement>)
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
@@ -74,6 +78,11 @@ function AuthModal({ isOpen, onClose, mode, onSuccess, onSwitchMode }) {
       // 🚀 LÓGICA DE REGISTRO
       if (!formData.name || !formData.email || !formData.password || !formData.confirmPassword) {
         setError("Por favor, completa todos los campos.");
+        setIsLoading(false);
+        return;
+      }
+      if (formData.password.length < 6) {
+        setError("La contraseña debe tener al menos 6 caracteres.");
         setIsLoading(false);
         return;
       }
@@ -101,12 +110,13 @@ function AuthModal({ isOpen, onClose, mode, onSuccess, onSwitchMode }) {
           setFormData({ name: "", email: formData.email, password: "", confirmPassword: "" });
           setTimeout(() => { onSwitchMode(); }, 1500);
         } else {
+          // Intenta parsear JSON, si falla, usa el texto de la respuesta
           const errorBody = await response.json().catch(() => ({}));
           const errorText = errorBody.message || errorBody.error || await response.text();
           setError(`Error ${response.status}: ${errorText || 'El usuario ya existe o error desconocido.'}`);
         }
       } catch (err) {
-        console.error("Error de red/servidor:", err);
+        console.error("Error de red/servidor durante el registro:", err);
         setError("🔴 No se pudo conectar con el servidor. Revisa tu conexión o intenta más tarde.");
       } finally {
         setIsLoading(false);
@@ -151,7 +161,7 @@ function AuthModal({ isOpen, onClose, mode, onSuccess, onSwitchMode }) {
           setError(`Error ${response.status}: ${errorText || 'Credenciales inválidas o error desconocido.'}`);
         }
       } catch (err) {
-        console.error("Error de red/servidor:", err);
+        console.error("Error de red/servidor durante el login:", err);
         setError("🔴 No se pudo conectar con el servidor. Revisa tu conexión o el CORS.");
       } finally {
         setIsLoading(false);
