@@ -1,76 +1,5 @@
-import React, { useState, createContext, useContext, useEffect, type FormEvent } from 'react';
-import { LogIn, LogOut, User, Zap, Mail } from 'lucide-react';
-
-// =================================================================
-// 1. CONTEXTO DE AUTENTICACIÓN
-// =================================================================
-
-// Interfaz para los datos del usuario que vienen del backend
-interface UserData {
-  id: number;
-  nombreUsuario: string;
-  correo: string;
-}
-
-// Definición del tipo de contexto
-interface AuthContextType {
-  user: UserData | null;
-  isAuthenticated: boolean;
-  login: (data: UserData) => void;
-  logout: () => void;
-}
-
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-// Hook personalizado para usar el contexto
-const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth debe ser usado dentro de un AuthProvider');
-  }
-  return context;
-};
-
-// Proveedor del Contexto de Autenticación
-const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Inicializa el usuario desde localStorage para mantener la sesión
-  const [user, setUser] = useState<UserData | null>(() => {
-    if (typeof window !== 'undefined') {
-      const storedUser = localStorage.getItem('auth_user');
-      return storedUser ? JSON.parse(storedUser) : null;
-    }
-    return null;
-  });
-
-  const isAuthenticated = !!user;
-
-  // Función para iniciar sesión y guardar en localStorage
-  const login = (data: UserData) => {
-    setUser(data);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('auth_user', JSON.stringify(data));
-    }
-  };
-
-  // Función para cerrar sesión y limpiar localStorage
-  const logout = () => {
-    setUser(null);
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem('auth_user');
-    }
-  };
-
-  return (
-    <AuthContext.Provider value={{ user, isAuthenticated, login, logout }}>
-      {children}
-    </AuthContext.Provider>
-  );
-};
-
-
-// =================================================================
-// 2. MODAL DE AUTENTICACIÓN (Actualizado)
-// =================================================================
+import { useState, type FormEvent } from "react"
+// NO se utiliza useAuth ni ningún Contexto de Autenticación, según la solicitud.
 
 interface AuthModalProps {
   isOpen: boolean
@@ -80,10 +9,7 @@ interface AuthModalProps {
   onSwitchMode: () => void
 }
 
-function AuthModal({ isOpen, onClose, mode, onSuccess, onSwitchMode }: AuthModalProps) {
-  // 💡 Usando el hook real para obtener la función login
-  const { login } = useAuth() 
-
+export function AuthModal({ isOpen, onClose, mode, onSuccess, onSwitchMode }: AuthModalProps) {
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -91,20 +17,23 @@ function AuthModal({ isOpen, onClose, mode, onSuccess, onSwitchMode }: AuthModal
     confirmPassword: "",
   })
 
+  // Estados para manejar el loading y el error/mensaje de estado
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
 
-  // ⚠️ REEMPLAZAR ESTA URL CON TU BACKEND REAL DE SPRING BOOT
-  // const API_BASE_URL = process.env.NEXT_PUBLIC_API_BACK; 
-  const API_BASE_URL = "https://backend-production-566e.up.railway.app"; 
 
+  // ⚠️ Importante: Reemplaza esta URL con tu variable de entorno real
+  const API_BASE_URL = "https://backend-production-566e.up.railway.app" 
+  
   if (!isOpen) return null
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({ ...formData, [e.target.id]: e.target.value });
     setError(null);
+    setSuccessMessage(null);
   };
+
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
@@ -118,75 +47,123 @@ function AuthModal({ isOpen, onClose, mode, onSuccess, onSwitchMode }: AuthModal
       return
     }
 
-    const endpoint = mode === "register" ? "/usuarios" : "/usuarios/login";
-    
-    try {
-      let dataToSend: any;
-      
-      if (mode === "register") {
-        // Validación de Registro
-        if (!formData.name || !formData.email || !formData.password || !formData.confirmPassword) {
-            setError("Por favor, completa todos los campos.")
-            return
-        }
-        if (formData.password !== formData.confirmPassword) {
-            setError("Las contraseñas no coinciden.")
-            return
-        }
-        if (formData.password.length < 6) {
-            setError("La contraseña debe tener al menos 6 caracteres.")
-            return
-        }
-        dataToSend = {
-          nombreUsuario: formData.name,
-          correo: formData.email,
-          password: formData.password,
-        };
-      } else {
-        // Validación de Login
-        if (!formData.email || !formData.password) {
-            setError("Por favor, completa el correo y la contraseña.")
-            return
-        }
-        dataToSend = {
-          correo: formData.email,
-          password: formData.password,
-        };
+    if (mode === "register") {
+      // =========================================================
+      // 🚀 LÓGICA DE REGISTRO
+      // =========================================================
+
+      // 1. VALIDACIONES LOCALES (REGISTRO)
+      if (!formData.name || !formData.email || !formData.password || !formData.confirmPassword) {
+        setError("Por favor, completa todos los campos.")
+        setIsLoading(false);
+        return
+      }
+      if (formData.password !== formData.confirmPassword) {
+        setError("Las contraseñas no coinciden.")
+        setIsLoading(false);
+        return
+      }
+      if (formData.password.length < 6) {
+        setError("La contraseña debe tener al menos 6 caracteres.")
+        setIsLoading(false);
+        return
       }
 
-      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(dataToSend),
-      })
+      // 2. PREPARACIÓN DE DATOS PARA EL BACKEND (REGISTRO)
+      const registerData = {
+        nombreUsuario: formData.name,
+        correo: formData.email,
+        password: formData.password,
+      }
 
-      if (response.ok) {
-        const userData: UserData = await response.json();
+      // 3. LLAMADA AL BACKEND (REGISTRO)
+      try {
+        const response = await fetch(`${API_BASE_URL}/usuarios`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(registerData),
+        })
 
-        if (mode === "login") {
-          // 💡 ESTA ES LA CLAVE: Llamar a login del Contexto con los datos reales
-          login(userData); 
-          setSuccessMessage("¡Inicio de sesión exitoso!");
-          setTimeout(() => onSuccess(), 1000); // Cierra el modal y notifica éxito
-        } else {
-          setSuccessMessage("¡Registro exitoso! Ahora inicia sesión.");
-          // Cambia a modo login después de un registro exitoso
+        // 4. MANEJO DE RESPUESTA (REGISTRO)
+        if (response.ok) {
+          setSuccessMessage("¡Registro exitoso! Ahora puedes iniciar sesión.")
+
+          // ➡️ Limpia el formulario y cambia a modo login
+          setFormData({ name: "", email: formData.email, password: "", confirmPassword: "" })
           setTimeout(() => {
-            setFormData({ name: "", email: userData.correo, password: "", confirmPassword: "" });
-            onSwitchMode();
-          }, 1500);
+            onSwitchMode() 
+          }, 1500)
+          
+        } else {
+          const errorBody = await response.json().catch(() => ({}));
+          const errorText = errorBody.message || errorBody.error || await response.text();
+          const errorMessage = `Error ${response.status}: ${errorText || 'Error desconocido'}`
+          setError(`Error al registrar: ${errorMessage}`)
         }
-      } else {
-        const errorBody = await response.json().catch(() => ({}));
-        const errorText = errorBody.message || errorBody.error || await response.text();
-        const defaultMsg = mode === "login" ? 'Credenciales inválidas.' : 'Error desconocido al registrar.';
-        setError(`Error ${response.status}: ${errorText || defaultMsg}`)
+      } catch (err) {
+        console.error("Error de red/servidor:", err)
+        setError("No se pudo conectar con el servidor. Intenta de nuevo.")
+      } finally {
+        setIsLoading(false)
       }
-    } catch (err) {
-      console.error("Error de red/servidor:", err)
-      setError("No se pudo conectar con el servidor. Verifica la URL y la configuración.")
-    } finally {
-      setIsLoading(false)
+    } else {
+      // =========================================================
+      // 🚀 LÓGICA DE INICIO DE SESIÓN (LOGIN)
+      // =========================================================
+      
+      // 1. VALIDACIONES LOCALES (LOGIN)
+      if (!formData.email || !formData.password) {
+        setError("Por favor, completa el correo y la contraseña.")
+        setIsLoading(false);
+        return
+      }
+
+      // 2. PREPARACIÓN DE DATOS PARA EL BACKEND (LOGIN)
+      const loginData = {
+        correo: formData.email,
+        password: formData.password,
+      }
+
+      // 3. LLAMADA AL BACKEND (LOGIN)
+      try {
+        const response = await fetch(`${API_BASE_URL}/usuarios/login`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(loginData),
+        })
+
+        // 4. MANEJO DE RESPUESTA (LOGIN)
+        if (response.ok) {
+          // 💡 NOTA: Aquí el backend devuelve el objeto Usuario con nombre y correo.
+          // Si no se usa un Contexto de Autenticación, esta data se pierde tras cerrar el modal.
+          const userData = await response.json() 
+          
+          setSuccessMessage("¡Inicio de sesión exitoso!")
+
+          // ➡️ Llama a onSuccess (usualmente cierra el modal)
+          setTimeout(() => {
+            onSuccess() 
+            setFormData({ name: "", email: "", password: "", confirmPassword: "" }) // Limpia el formulario
+            // Para persistir la sesión, debes guardar 'userData' en localStorage aquí.
+            localStorage.setItem('temp_user_data', JSON.stringify(userData)); // Uso temporal para el ejemplo
+          }, 1000)
+          
+        } else {
+          const errorBody = await response.json().catch(() => ({}));
+          const errorText = errorBody.message || errorBody.error || await response.text();
+          const errorMessage = `Error ${response.status}: ${errorText || 'Credenciales inválidas o error desconocido'}`
+          setError(`Error al iniciar sesión: ${errorMessage}`)
+        }
+      } catch (err) {
+        console.error("Error de red/servidor:", err)
+        setError("No se pudo conectar con el servidor. Intenta de nuevo.")
+      } finally {
+        setIsLoading(false)
+      }
     }
   }
 
@@ -194,26 +171,30 @@ function AuthModal({ isOpen, onClose, mode, onSuccess, onSwitchMode }: AuthModal
     <div
       className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4"
       onClick={onClose}
+      data-testid={`${mode}-modal`}
     >
       <div
         className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-lg p-8 max-w-md w-full border-2 border-red-500 shadow-2xl transition-all duration-300"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Título y botón de cierre */}
+        {/* 🔹 Título y botón de cierre */}
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-            <LogIn className="w-6 h-6 text-red-500" />
+          <h2
+            className="text-2xl font-bold text-white"
+            data-testid={`${mode}-title`}
+          >
             {mode === "login" ? "INICIAR SESIÓN" : "REGISTRARSE"}
           </h2>
           <button
             onClick={onClose}
             className="text-white text-2xl hover:text-red-500 transition-colors"
+            data-testid={`${mode}-close`}
           >
             ✕
           </button>
         </div>
 
-        {/* Mensajes de estado */}
+        {/* 💡 Mensajes de estado */}
         {error && (
           <p className="text-red-300 text-center text-sm font-medium mb-4 p-2 bg-red-900/30 rounded-md border border-red-500/50">
             {error}
@@ -225,12 +206,18 @@ function AuthModal({ isOpen, onClose, mode, onSuccess, onSwitchMode }: AuthModal
           </p>
         )}
 
-        {/* Formulario principal */}
-        <form onSubmit={handleSubmit} className="space-y-4">
-          
+        {/* 🔹 Formulario principal */}
+        <form
+          onSubmit={handleSubmit}
+          className="space-y-4"
+          data-testid={`${mode}-form`}
+        >
           {mode === "register" && (
             <div>
-              <label className="block text-white text-sm font-bold mb-2" htmlFor="name">
+              <label
+                className="block text-white text-sm font-bold mb-2"
+                htmlFor="name"
+              >
                 NOMBRE:
               </label>
               <input
@@ -240,13 +227,17 @@ function AuthModal({ isOpen, onClose, mode, onSuccess, onSwitchMode }: AuthModal
                 onChange={handleInputChange}
                 className="w-full px-4 py-2 bg-gray-800 text-white border-2 border-gray-700 rounded focus:border-red-500 outline-none"
                 required
+                data-testid="register-name-input"
                 disabled={isLoading}
               />
             </div>
           )}
 
           <div>
-            <label className="block text-white text-sm font-bold mb-2" htmlFor="email">
+            <label
+              className="block text-white text-sm font-bold mb-2"
+              htmlFor="email"
+            >
               EMAIL:
             </label>
             <input
@@ -256,12 +247,16 @@ function AuthModal({ isOpen, onClose, mode, onSuccess, onSwitchMode }: AuthModal
               onChange={handleInputChange}
               className="w-full px-4 py-2 bg-gray-800 text-white border-2 border-gray-700 rounded focus:border-red-500 outline-none"
               required
+              data-testid={`${mode}-email-input`}
               disabled={isLoading}
             />
           </div>
 
           <div>
-            <label className="block text-white text-sm font-bold mb-2" htmlFor="password">
+            <label
+              className="block text-white text-sm font-bold mb-2"
+              htmlFor="password"
+            >
               CONTRASEÑA:
             </label>
             <input
@@ -271,13 +266,17 @@ function AuthModal({ isOpen, onClose, mode, onSuccess, onSwitchMode }: AuthModal
               onChange={handleInputChange}
               className="w-full px-4 py-2 bg-gray-800 text-white border-2 border-gray-700 rounded focus:border-red-500 outline-none"
               required
+              data-testid={`${mode}-password-input`}
               disabled={isLoading}
             />
           </div>
 
           {mode === "register" && (
             <div>
-              <label className="block text-white text-sm font-bold mb-2" htmlFor="confirmPassword">
+              <label
+                className="block text-white text-sm font-bold mb-2"
+                htmlFor="confirmPassword"
+              >
                 CONFIRMAR CONTRASEÑA:
               </label>
               <input
@@ -287,19 +286,21 @@ function AuthModal({ isOpen, onClose, mode, onSuccess, onSwitchMode }: AuthModal
                 onChange={handleInputChange}
                 className="w-full px-4 py-2 bg-gray-800 text-white border-2 border-gray-700 rounded focus:border-red-500 outline-none"
                 required
+                data-testid="register-confirm-password-input"
                 disabled={isLoading}
               />
             </div>
           )}
 
-          {/* Botón principal */}
+          {/* 🔹 Botón principal */}
           <button
             type="submit"
-            className="w-full bg-gradient-to-r from-red-600 to-red-800 hover:from-red-700 hover:to-red-900 text-white py-3 rounded font-bold transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-            disabled={isLoading || !!successMessage}
+            className="w-full bg-gradient-to-r from-red-600 to-red-800 hover:from-red-700 hover:to-red-900 text-white py-3 rounded font-bold transition-all disabled:opacity-50"
+            data-testid={`${mode}-submit`}
+            disabled={isLoading || !!successMessage} // Deshabilita mientras carga o si hay mensaje de éxito
           >
             {isLoading
-              ? <><Zap className="w-5 h-5 animate-spin" /> Procesando...</>
+              ? "Cargando..."
               : mode === "login"
               ? "INICIAR SESIÓN"
               : "REGISTRARSE"}
@@ -314,6 +315,9 @@ function AuthModal({ isOpen, onClose, mode, onSuccess, onSwitchMode }: AuthModal
             <button
               onClick={onSwitchMode}
               className="text-red-500 hover:text-red-400 font-bold"
+              data-testid={`switch-to-${
+                mode === "login" ? "register" : "login"
+              }`}
               disabled={isLoading || !!successMessage}
             >
               {mode === "login" ? "REGISTRARSE" : "INICIAR SESIÓN"}
@@ -324,95 +328,3 @@ function AuthModal({ isOpen, onClose, mode, onSuccess, onSwitchMode }: AuthModal
     </div>
   )
 }
-
-// =================================================================
-// 3. COMPONENTE PRINCIPAL DE LA APLICACIÓN
-// =================================================================
-
-function AppContent() {
-  const { user, isAuthenticated, logout } = useAuth();
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [modalMode, setModalMode] = useState<'login' | 'register'>('login');
-
-  const openModal = (mode: 'login' | 'register') => {
-    setModalMode(mode);
-    setIsModalOpen(true);
-  };
-
-  const closeModal = () => {
-    setIsModalOpen(false);
-  };
-
-  return (
-    <div className="min-h-screen bg-gray-900 text-white p-4 font-sans flex flex-col items-center justify-center">
-      <header className="w-full max-w-4xl p-6 bg-gray-800 rounded-lg shadow-xl mb-10 border-t-4 border-red-500">
-        <h1 className="text-3xl font-extrabold text-center mb-4 flex items-center justify-center gap-3 text-red-500">
-          <Zap className="w-8 h-8"/>Sistema de Autenticación Demo
-        </h1>
-        <p className="text-center text-gray-400">
-          Implementación de `AuthContext` para datos de usuario persistentes.
-        </p>
-      </header>
-
-      <main className="w-full max-w-xl p-8 bg-gray-800 rounded-lg shadow-2xl border border-gray-700">
-        {isAuthenticated ? (
-          <div className="text-center space-y-4">
-            <h2 className="text-2xl font-bold text-green-400">
-              ¡Bienvenido de vuelta!
-            </h2>
-            <div className="bg-gray-700 p-4 rounded-lg space-y-2 border border-green-500/50">
-              <p className="flex items-center justify-center gap-2 text-xl font-semibold">
-                <User className="w-5 h-5 text-red-400"/> Usuario: <span className="text-white">{user?.nombreUsuario}</span>
-              </p>
-              <p className="flex items-center justify-center gap-2 text-md">
-                <Mail className="w-5 h-5 text-gray-400"/> Correo: <span className="text-gray-300">{user?.correo}</span>
-              </p>
-              <p className="text-xs text-gray-500">ID de Sesión: {user?.id}</p>
-            </div>
-            
-            <p className="mt-4 text-sm text-gray-400">
-                Esta información es la que *debería* usarse para las compras.
-            </p>
-
-            <button
-              onClick={logout}
-              className="mt-6 w-full py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-2"
-            >
-              <LogOut className="w-5 h-5"/> Cerrar Sesión
-            </button>
-          </div>
-        ) : (
-          <div className="text-center space-y-4">
-            <h2 className="text-xl font-semibold text-gray-300">
-              Inicia sesión para ver tu información real.
-            </h2>
-            <button
-              onClick={() => openModal('login')}
-              className="w-full py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-2"
-            >
-              <LogIn className="w-5 h-5"/> Iniciar Sesión / Registrarse
-            </button>
-          </div>
-        )}
-      </main>
-
-      <AuthModal
-        isOpen={isModalOpen}
-        onClose={closeModal}
-        mode={modalMode}
-        onSuccess={closeModal}
-        onSwitchMode={() => setModalMode(modalMode === 'login' ? 'register' : 'login')}
-      />
-
-    </div>
-  );
-}
-
-// 4. Exportar el componente App envuelto en el AuthProvider
-const App = () => (
-    <AuthProvider>
-        <AppContent />
-    </AuthProvider>
-);
-
-export default App;
