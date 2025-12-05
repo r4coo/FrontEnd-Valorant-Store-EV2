@@ -2,27 +2,98 @@
 
 import { useCart } from "@/contexts/cart-context"
 import Image from "next/image"
+import { useState } from "react"
 
 interface CartModalProps {
   isOpen: boolean
   onClose: () => void
 }
 
+// ⚠️ IMPORTANTE: Aquí deberías integrar tu hook de autenticación real (ej. useAuth) 
+// para obtener el nombre y correo del usuario autenticado.
+// Usaremos placeholders para simular los datos necesarios para la API.
+const DUMMY_USER_NAME = "Usuario Autenticado" 
+const DUMMY_USER_EMAIL = "usuario.autenticado@ejemplo.com"
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BACK
+
 export function CartModal({ isOpen, onClose }: CartModalProps) {
   const { cart, removeFromCart, increaseQuantity, decreaseQuantity, clearCart, getTotalPrice } = useCart()
+  
+  // Estados para manejar la compra
+  const [isLoading, setIsLoading] = useState(false)
+  const [checkoutMessage, setCheckoutMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
 
   if (!isOpen) return null
 
-  const handleCheckout = () => {
-    if (cart.length === 0) {
-      alert("Tu carrito está vacío")
+  const handleCheckout = async () => {
+    // 0. Validar la URL del API
+    if (!API_BASE_URL) {
+      setCheckoutMessage({ type: 'error', text: "Error: La URL del backend no está configurada (NEXT_PUBLIC_API_BACK)." });
       return
     }
-    alert(
-      `¡Gracias por tu compra!\nTotal: $${getTotalPrice().toFixed(2)}\n\nEsto es una demo - no se procesará ningún pago real.`,
-    )
-    clearCart()
-    onClose()
+
+    // 1. Validar el carrito
+    if (cart.length === 0) {
+      setCheckoutMessage({ type: 'error', text: "Tu carrito está vacío. Agrega productos para comprar." });
+      return
+    }
+
+    // 2. Preparar los datos de la orden
+    const totalPrice = getTotalPrice()
+    const orderData = {
+      // Usar datos reales del usuario (reemplazar DUMMY_USER_...)
+      nombreUsuario: DUMMY_USER_NAME,
+      correo: DUMMY_USER_EMAIL,
+      total: totalPrice,
+      productos: cart.map(item => ({
+        idProducto: item.id, // Asume que cada producto tiene un ID
+        nombre: item.name,
+        cantidad: item.quantity,
+        precioUnitario: item.price,
+      })),
+    }
+
+    setIsLoading(true)
+    setCheckoutMessage(null)
+
+    // 3. Llamada a la API
+    try {
+      const response = await fetch(`${API_BASE_URL}/compras`, { // Endpoint asumido: /compras
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          // Aquí iría el Token JWT si estuvieras usándolo para seguridad
+        },
+        body: JSON.stringify(orderData),
+      })
+
+      if (response.ok) {
+        // Compra exitosa
+        const result = await response.json()
+        setCheckoutMessage({ 
+            type: 'success', 
+            text: `¡Compra exitosa! Total pagado: $${totalPrice.toFixed(2)}. ID de orden: ${result.id || 'N/A'}` 
+        })
+        clearCart()
+        // No cerramos el modal inmediatamente, permitimos al usuario ver el mensaje de éxito
+      } else {
+        // Error de la API (ej. 400, 500)
+        const errorText = await response.text()
+        setCheckoutMessage({ 
+            type: 'error', 
+            text: `Error ${response.status} al procesar la compra: ${errorText || 'Error desconocido del servidor'}` 
+        })
+      }
+    } catch (err) {
+      // Error de red
+      console.error("Error de red/servidor:", err)
+      setCheckoutMessage({ 
+          type: 'error', 
+          text: "No se pudo conectar con el servidor para procesar la compra." 
+      })
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -48,6 +119,38 @@ export function CartModal({ isOpen, onClose }: CartModalProps) {
           </button>
         </div>
 
+        {/* Mensaje de Compra/Error (Reemplaza el antiguo alert) */}
+        {checkoutMessage && (
+          <div 
+            className={`p-4 mb-4 rounded-lg font-bold text-center ${
+              checkoutMessage.type === 'success' 
+                ? 'bg-green-700 text-white' 
+                : 'bg-red-700 text-white'
+            }`}
+          >
+            {checkoutMessage.text}
+            {checkoutMessage.type === 'success' && (
+                <button
+                    onClick={onClose}
+                    className="ml-4 font-normal underline hover:text-gray-200"
+                >
+                    Cerrar
+                </button>
+            )}
+          </div>
+        )}
+
+        {/* Información del Usuario (PLACEHOLDER) */}
+        <div className="bg-gray-800 p-4 rounded-lg mb-6 text-sm text-gray-300">
+            <p className="font-semibold text-white mb-2">Detalles del Comprador (Placeholder):</p>
+            <p>Nombre: <span className="text-red-400">{DUMMY_USER_NAME}</span></p>
+            <p>Email: <span className="text-red-400">{DUMMY_USER_EMAIL}</span></p>
+            <p className="text-xs mt-1 italic text-gray-500">
+                ⚠️ Reemplaza estas constantes con los datos de tu Contexto de Autenticación.
+            </p>
+        </div>
+
+
         <div className="space-y-4 mb-6" data-testid="cart-items">
           {cart.length === 0 ? (
             <div className="text-center text-gray-400 py-8" data-testid="empty-cart">
@@ -62,11 +165,13 @@ export function CartModal({ isOpen, onClose }: CartModalProps) {
               >
                 <div className="relative w-20 h-20 flex-shrink-0">
                   <Image
-                    src={item.image || "/placeholder.svg"}
+                    src={item.image || "https://placehold.co/80x80/1f2937/FFFFFF?text=Product"}
                     alt={item.name}
                     fill
                     className="object-contain"
                     data-testid={`cart-item-image-${index}`}
+                    // Para que Next.js no se queje de URLs vacías en el código del usuario.
+                    onError={(e: any) => e.target.src = "https://placehold.co/80x80/1f2937/FFFFFF?text=Product"}
                   />
                 </div>
                 <div className="flex-1">
@@ -118,17 +223,19 @@ export function CartModal({ isOpen, onClose }: CartModalProps) {
           <div className="flex gap-4">
             <button
               onClick={clearCart}
-              className="flex-1 bg-gray-700 hover:bg-gray-600 text-white py-3 rounded font-bold transition-colors"
+              className="flex-1 bg-gray-700 hover:bg-gray-600 text-white py-3 rounded font-bold transition-colors disabled:opacity-50"
               data-testid="cart-clear"
+              disabled={cart.length === 0 || isLoading}
             >
               VACIAR CARRITO
             </button>
             <button
               onClick={handleCheckout}
-              className="flex-1 bg-gradient-to-r from-green-600 to-green-800 hover:from-green-700 hover:to-green-900 text-white py-3 rounded font-bold transition-all"
+              className="flex-1 bg-gradient-to-r from-green-600 to-green-800 hover:from-green-700 hover:to-green-900 text-white py-3 rounded font-bold transition-all disabled:opacity-50"
               data-testid="cart-checkout"
+              disabled={cart.length === 0 || isLoading}
             >
-              COMPRAR AHORA
+              {isLoading ? "PROCESANDO..." : "COMPRAR AHORA"}
             </button>
           </div>
         </div>
