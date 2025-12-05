@@ -1,4 +1,76 @@
-import { useState, type FormEvent } from "react"
+import React, { useState, createContext, useContext, useEffect, type FormEvent } from 'react';
+import { LogIn, LogOut, User, Zap, Mail } from 'lucide-react';
+
+// =================================================================
+// 1. CONTEXTO DE AUTENTICACIÓN
+// =================================================================
+
+// Interfaz para los datos del usuario que vienen del backend
+interface UserData {
+  id: number;
+  nombreUsuario: string;
+  correo: string;
+}
+
+// Definición del tipo de contexto
+interface AuthContextType {
+  user: UserData | null;
+  isAuthenticated: boolean;
+  login: (data: UserData) => void;
+  logout: () => void;
+}
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+// Hook personalizado para usar el contexto
+const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error('useAuth debe ser usado dentro de un AuthProvider');
+  }
+  return context;
+};
+
+// Proveedor del Contexto de Autenticación
+const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  // Inicializa el usuario desde localStorage para mantener la sesión
+  const [user, setUser] = useState<UserData | null>(() => {
+    if (typeof window !== 'undefined') {
+      const storedUser = localStorage.getItem('auth_user');
+      return storedUser ? JSON.parse(storedUser) : null;
+    }
+    return null;
+  });
+
+  const isAuthenticated = !!user;
+
+  // Función para iniciar sesión y guardar en localStorage
+  const login = (data: UserData) => {
+    setUser(data);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('auth_user', JSON.stringify(data));
+    }
+  };
+
+  // Función para cerrar sesión y limpiar localStorage
+  const logout = () => {
+    setUser(null);
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('auth_user');
+    }
+  };
+
+  return (
+    <AuthContext.Provider value={{ user, isAuthenticated, login, logout }}>
+      {children}
+    </AuthContext.Provider>
+  );
+};
+
+
+// =================================================================
+// 2. MODAL DE AUTENTICACIÓN (Actualizado)
+// =================================================================
 
 interface AuthModalProps {
   isOpen: boolean
@@ -252,3 +324,95 @@ function AuthModal({ isOpen, onClose, mode, onSuccess, onSwitchMode }: AuthModal
     </div>
   )
 }
+
+// =================================================================
+// 3. COMPONENTE PRINCIPAL DE LA APLICACIÓN
+// =================================================================
+
+function AppContent() {
+  const { user, isAuthenticated, logout } = useAuth();
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modalMode, setModalMode] = useState<'login' | 'register'>('login');
+
+  const openModal = (mode: 'login' | 'register') => {
+    setModalMode(mode);
+    setIsModalOpen(true);
+  };
+
+  const closeModal = () => {
+    setIsModalOpen(false);
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-900 text-white p-4 font-sans flex flex-col items-center justify-center">
+      <header className="w-full max-w-4xl p-6 bg-gray-800 rounded-lg shadow-xl mb-10 border-t-4 border-red-500">
+        <h1 className="text-3xl font-extrabold text-center mb-4 flex items-center justify-center gap-3 text-red-500">
+          <Zap className="w-8 h-8"/>Sistema de Autenticación Demo
+        </h1>
+        <p className="text-center text-gray-400">
+          Implementación de `AuthContext` para datos de usuario persistentes.
+        </p>
+      </header>
+
+      <main className="w-full max-w-xl p-8 bg-gray-800 rounded-lg shadow-2xl border border-gray-700">
+        {isAuthenticated ? (
+          <div className="text-center space-y-4">
+            <h2 className="text-2xl font-bold text-green-400">
+              ¡Bienvenido de vuelta!
+            </h2>
+            <div className="bg-gray-700 p-4 rounded-lg space-y-2 border border-green-500/50">
+              <p className="flex items-center justify-center gap-2 text-xl font-semibold">
+                <User className="w-5 h-5 text-red-400"/> Usuario: <span className="text-white">{user?.nombreUsuario}</span>
+              </p>
+              <p className="flex items-center justify-center gap-2 text-md">
+                <Mail className="w-5 h-5 text-gray-400"/> Correo: <span className="text-gray-300">{user?.correo}</span>
+              </p>
+              <p className="text-xs text-gray-500">ID de Sesión: {user?.id}</p>
+            </div>
+            
+            <p className="mt-4 text-sm text-gray-400">
+                Esta información es la que *debería* usarse para las compras.
+            </p>
+
+            <button
+              onClick={logout}
+              className="mt-6 w-full py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-2"
+            >
+              <LogOut className="w-5 h-5"/> Cerrar Sesión
+            </button>
+          </div>
+        ) : (
+          <div className="text-center space-y-4">
+            <h2 className="text-xl font-semibold text-gray-300">
+              Inicia sesión para ver tu información real.
+            </h2>
+            <button
+              onClick={() => openModal('login')}
+              className="w-full py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-2"
+            >
+              <LogIn className="w-5 h-5"/> Iniciar Sesión / Registrarse
+            </button>
+          </div>
+        )}
+      </main>
+
+      <AuthModal
+        isOpen={isModalOpen}
+        onClose={closeModal}
+        mode={modalMode}
+        onSuccess={closeModal}
+        onSwitchMode={() => setModalMode(modalMode === 'login' ? 'register' : 'login')}
+      />
+
+    </div>
+  );
+}
+
+// 4. Exportar el componente App envuelto en el AuthProvider
+const App = () => (
+    <AuthProvider>
+        <AppContent />
+    </AuthProvider>
+);
+
+export default App;
